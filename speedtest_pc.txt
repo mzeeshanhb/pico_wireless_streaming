@@ -1,0 +1,57 @@
+import socket
+import time
+
+HOST = "0.0.0.0"
+PORT = 5001
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen(1)
+
+print(f"Listening on {HOST}:{PORT} ...")
+conn, addr = server.accept()
+print("Connected by", addr)
+
+# --- Speed measurement variables ---
+start_time = time.time()
+last_report_time = start_time
+total_bytes = 0
+bytes_since_last = 0
+
+with open("pico_stream.csv", "wb") as f:
+    while True:
+        data = conn.recv(4096)
+        if not data:
+            break
+
+        # Write data to CSV file
+        f.write(data)
+
+        # Update counters
+        total_bytes += len(data)
+        bytes_since_last += len(data)
+
+        # Check if 3 seconds passed
+        now = time.time()
+        if now - last_report_time >= 3.0:
+            duration = now - last_report_time
+            mbps = (bytes_since_last * 8) / (duration * 1e6)
+
+            print(f"[LIVE] Upload speed: {mbps:.2f} Mbps")
+
+            # Reset for next interval
+            last_report_time = now
+            bytes_since_last = 0
+
+# Final summary
+end_time = time.time()
+total_duration = end_time - start_time
+avg_mbps = (total_bytes * 8) / (total_duration * 1e6)
+
+print("\n---- FINAL SUMMARY ----")
+print(f"Total bytes received: {total_bytes}")
+print(f"Total time: {total_duration:.2f} seconds")
+print(f"Average upload speed: {avg_mbps:.2f} Mbps")
+
+conn.close()
+server.close()

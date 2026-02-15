@@ -1,0 +1,71 @@
+#include <WiFi.h>
+
+const char* ssid      = "ASUS_C8";
+const char* password  = "rainbow_3734";  //replace with wifi name and pass
+
+const char* pc_ip     = "192.168.50.69";   //replace with pc ip
+const uint16_t pc_port = 5001;
+
+WiFiClient client;
+
+struct Packet {
+  uint32_t ts;
+  uint16_t a1;
+  uint16_t a2;
+};
+
+
+const int BATCH = 4000;              // 4000*8=32KB
+static Packet buffer[BATCH];
+
+void connectWifi() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+  }
+}
+
+void connectTcp() {
+  while (!client.connected()) {
+    client.connect(pc_ip, pc_port);
+    delay(100);
+  }
+  client.setNoDelay(true);
+}
+
+void setup() {
+  Serial.begin(115200);
+  connectWifi();
+  connectTcp();
+}
+
+void loop() {
+ 
+  uint32_t t = millis();
+  for (int i = 0; i < BATCH; i++) {
+    buffer[i].ts = t + i;
+    buffer[i].a1 = i;
+    buffer[i].a2 = i * 2;
+  }
+
+  
+  size_t toSend = sizeof(buffer);
+  uint8_t* ptr = (uint8_t*)buffer;
+
+  while (toSend > 0) {
+    if (!client.connected()) {
+      connectTcp();
+    }
+    int n = client.write(ptr, toSend);
+    if (n <= 0) {
+      client.stop();
+      connectTcp();
+      continue;
+    }
+    ptr    += n;
+    toSend -= n;
+  }
+
+  
+  delayMicroseconds(200);
+}
